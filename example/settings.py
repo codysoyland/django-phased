@@ -42,13 +42,13 @@ TEMPLATE_LOADERS = (
 MIDDLEWARE_CLASSES = (
     'phased.middleware.PhasedRenderMiddleware',
     'django.middleware.cache.UpdateCacheMiddleware',
+    'phased.middleware.DropVaryCookieHeaderMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.cache.FetchFromCacheMiddleware',
-    'phased.middleware.DropVaryCookieHeaderMiddleware',
 )
 
 ROOT_URLCONF = 'example.urls'
