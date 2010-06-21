@@ -1,8 +1,23 @@
-from django.template import Parser, Lexer, Token, TOKEN_TEXT
-from phased import LITERAL_DELIMITER
+import re, base64
+from django.template.context import Context
+from django.template import (Parser, Lexer, Token,
+    TOKEN_TEXT, COMMENT_TAG_START, COMMENT_TAG_END)
 from django.utils.cache import cc_delim_re
+from django.utils.functional import Promise, LazyObject
+from django.http import HttpResponse, HttpRequest
+from django.contrib.messages.storage.base import BaseStorage
 
-def second_pass_render(content, context):
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
+from phased import settings
+
+pickled_context_re = re.compile(r'.*%s stashed context: "(.*)" %s.*' % (COMMENT_TAG_START, COMMENT_TAG_END))
+forbidden_classes = (Promise, LazyObject, HttpRequest, BaseStorage)
+
+def second_pass_render(content, dictionary=None, context_instance=None):
     """
     Split on the literal delimiter and generate the token list by passing
     through text outside of literal blocks as single text tokens and tokenizing
@@ -10,13 +25,18 @@ def second_pass_render(content, context):
     literal blocks is tokenized, thus eliminating the possibility of a template
     code injection vulnerability.
     """
+    dictionary = dictionary or {}
     tokens = []
-    for index, bit in enumerate(content.split(LITERAL_DELIMITER)):
+    for index, bit in enumerate(content.split(settings.LITERAL_DELIMITER)):
         if index % 2:
             tokens += Lexer(bit, None).tokenize()
         else:
             tokens.append(Token(TOKEN_TEXT, bit))
-    return Parser(tokens).parse().render(context)
+    if context_instance:
+        context_instance.update(dictionary)
+    else:
+        context_instance = Context(dictionary)
+    return Parser(tokens).parse().render(context_instance)
 
 def drop_vary_headers(response, headers_to_drop):
     """
@@ -41,3 +61,36 @@ def drop_vary_headers(response, headers_to_drop):
         response['Vary'] = ', '.join(updated_vary_headers)
     else:
         del response['Vary']
+
+def flatten_context(context, remove_lazy=True):
+    """
+    Creates a dictionary from a Context instance by traversing
+    its dicts list. Can remove unwanted subjects from the result,
+    e.g. lazy objects.
+    """
+    flat_context = {}
+    for context_dict in context.dicts:
+        if remove_lazy:
+            result = dict((k, v) for k, v in context_dict.iteritems() if not isinstance(v, forbidden_classes))
+            flat_context.update(result)
+        else:
+            flat_context.update(context_dict)
+    return flat_context
+
+def unpickle_context(content):
+    """
+    Unpickle the context from the given content string or return None.
+    """
+    match = pickled_context_re.match(content)
+    if match:
+        return pickle.loads(base64.standard_b64decode(match.group(1)))
+    return None
+
+def pickle_context(context):
+    """
+    Pickle the given Context instance and do a few optimzations before.
+    """
+    flat_context = flatten_context(context)
+    pickled_context = base64.standard_b64encode(
+        pickle.dumps(flat_context, protocol=pickle.HIGHEST_PROTOCOL))
+    return '{# stashed context: "%s" #}' % pickled_context

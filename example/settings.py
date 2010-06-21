@@ -72,3 +72,5 @@ INSTALLED_APPS = (
     'phased',
     'devserver',
 )
+
+PHASED_KEEP_CONTEXT = True
