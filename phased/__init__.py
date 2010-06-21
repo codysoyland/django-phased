@@ -1,7 +1,0 @@
-from django.conf import settings
-from django.utils.hashcompat import sha_constructor
-
-def generate_secret_delimiter():
-    return sha_constructor(getattr(settings, 'SECRET_KEY', '')).hexdigest()
-
-LITERAL_DELIMITER = getattr(settings, 'LITERAL_DELIMITER', generate_secret_delimiter())
