@@ -1,3 +1,4 @@
+from django.http import HttpResponse
 from django.template.context import RequestContext
 from phased.utils import second_pass_render, drop_vary_headers
 
@@ -5,13 +6,9 @@ class PhasedRenderMiddleware(object):
     def process_response(self, request, response):
         if not response['content-type'].startswith("text/html"):
             return response
-
-        response.content = second_pass_render(
-            content = response.content,
-            context = RequestContext(request),
-        )
-
-        return response
+        content = second_pass_render(content=response.content,
+            context=RequestContext(request))
+        return HttpResponse(content, status=response.status_code, content_type=response['content-type'])
 
 class DropVaryCookieHeaderMiddleware(object):
     """
