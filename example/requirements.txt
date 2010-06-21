@@ -1,0 +1,5 @@
+Django
+django-tagging
+django-devserver
+-e git+http://github.com/nathanborror/django-basic-apps.git#egg=django-basic-apps
+BeautifulSoup
