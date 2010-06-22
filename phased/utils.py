@@ -1,7 +1,7 @@
 import re, base64
-from django.template.context import Context
+from django.template.context import Context, BaseContext
 from django.template import (Parser, Lexer, Token,
-    TOKEN_TEXT, COMMENT_TAG_START, COMMENT_TAG_END)
+    TOKEN_TEXT, COMMENT_TAG_START, COMMENT_TAG_END, TemplateSyntaxError)
 from django.utils.cache import cc_delim_re
 from django.utils.functional import Promise, LazyObject
 from django.http import HttpResponse, HttpRequest
@@ -90,7 +90,7 @@ def pickle_context(context):
     """
     Pickle the given Context instance and do a few optimzations before.
     """
-    flat_context = flatten_context(context)
-    pickled_context = base64.standard_b64encode(
-        pickle.dumps(flat_context, protocol=pickle.HIGHEST_PROTOCOL))
-    return '{# stashed context: "%s" #}' % pickled_context
+    if not isinstance(context, BaseContext):
+        raise TemplateSyntaxError('Literal context is not a Context instance')
+    pickled_context = pickle.dumps(flatten_context(context), protocol=pickle.HIGHEST_PROTOCOL)
+    return '{# stashed context: "%s" #}' % base64.standard_b64encode(pickled_context)
