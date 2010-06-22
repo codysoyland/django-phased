@@ -1,4 +1,4 @@
-import unittest
+import re, unittest
 from django.template import compile_string, Context, TemplateSyntaxError
 
 from phased.utils import second_pass_render, pickle_context, unpickle_context, flatten_context
@@ -135,19 +135,27 @@ class UtilsTestCase(unittest.TestCase):
         self.assertEqual(flatten_context(context), {'test_var': 'TEST2', 'abc': 'def'})
 
     def test_pickling(self):
-        self.assertEqual(pickle_context(Context({'test_var': 'TEST'})), '{# stashed context: "gAJ9cQFVCHRlc3RfdmFycQJVBFRFU1RxA3Mu" #}')
-        self.assertEqual(pickle_context(Context()), '{# stashed context: "gAJ9Lg==" #}')
         self.assertRaises(TemplateSyntaxError, pickle_context, {})
+        self.assertEqual(pickle_context(Context()), '{# stashed context: "gAJ9Lg==" #}')
+        context = Context({'test_var': 'TEST'})
+        template = '<!-- better be careful %s yikes -->'
+        self.assertEqual(pickle_context(context), '{# stashed context: "gAJ9cQFVCHRlc3RfdmFycQJVBFRFU1RxA3Mu" #}')
+        self.assertEqual(pickle_context(context, template), '<!-- better be careful gAJ9cQFVCHRlc3RfdmFycQJVBFRFU1RxA3Mu yikes -->')
 
     def test_unpickling(self):
         self.assertEqual(unpickle_context(pickle_context(Context())), flatten_context(Context()))
         context = Context({'test_var': 'TEST'})
         pickled_context = pickle_context(context)
         unpickled_context = unpickle_context(pickled_context)
-        # compare dicts attribute here, instead of instances
-        self.assertEqual(flatten_context(context), unpickle_context(pickled_context))
+        self.assertEqual(flatten_context(context), unpickled_context)
 
-
+    def test_unpickling_with_template_and_pattern(self):
+        context = Context({'test_var': 'TEST'})
+        template = '<!-- better be careful %s yikes -->'
+        pattern = re.compile(r'.*<!-- better be careful (.*) yikes -->.*')
+        pickled_context = pickle_context(context, template)
+        unpickled_context = unpickle_context(pickled_context, pattern)
+        self.assertEqual(flatten_context(context), unpickled_context)
 
 
 # TODO: more tests for phased rendering and tests for middleware and header hacks

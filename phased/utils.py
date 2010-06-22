@@ -77,20 +77,24 @@ def flatten_context(context, remove_lazy=True):
             flat_context.update(context_dict)
     return flat_context
 
-def unpickle_context(content):
+def unpickle_context(content, pattern=None):
     """
     Unpickle the context from the given content string or return None.
     """
-    match = pickled_context_re.match(content)
+    if pattern is None:
+        pattern = pickled_context_re
+    match = pattern.match(content)
     if match:
         return pickle.loads(base64.standard_b64decode(match.group(1)))
     return None
 
-def pickle_context(context):
+def pickle_context(context, template=None):
     """
     Pickle the given Context instance and do a few optimzations before.
     """
     if not isinstance(context, BaseContext):
         raise TemplateSyntaxError('Literal context is not a Context instance')
     pickled_context = pickle.dumps(flatten_context(context), protocol=pickle.HIGHEST_PROTOCOL)
-    return '{# stashed context: "%s" #}' % base64.standard_b64encode(pickled_context)
+    if template is None:
+        template = '{# stashed context: "%s" #}'
+    return template % base64.standard_b64encode(pickled_context)
