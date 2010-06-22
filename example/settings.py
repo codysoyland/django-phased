@@ -41,8 +41,7 @@ TEMPLATE_LOADERS = (
 
 MIDDLEWARE_CLASSES = (
     'phased.middleware.PhasedRenderMiddleware',
-    'django.middleware.cache.UpdateCacheMiddleware',
-    'phased.middleware.DropVaryCookieHeaderMiddleware',
+    'phased.middleware.PatchedVaryUpdateCacheMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',

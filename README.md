@@ -8,9 +8,10 @@ are to be parsed during the second phase. A middleware class,
 PhasedRenderMiddleware, processes the response to render the parts that were
 skipped during the first rendering.
 
-A special middleware for dropping the "Vary: Cookie" headers from response is
-also included, which, if placed after FetchFromCacheMiddleware, will prevent
-the cache middleware from varying the cache key based on cookies, thus enabling
-caching of pages in authenticated sessions.
+A special subclass of UpdateCacheMiddleware that drops the "Vary: Cookie"
+header from response when it updates the cache is also included, which, if
+used in place of the standard UpdateCacheMiddleware will prevent the cache
+middleware from varying the cache key based on cookies, thus enabling caching
+of pages in authenticated sessions.
 
 **More documentation coming soon. For now, please look at the example application.**
