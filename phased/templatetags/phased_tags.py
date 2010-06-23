@@ -67,7 +67,7 @@ def do_literal(parser, token):
     Usage::
 
         {% load phased_tags %}
-        {% literal [var1] [var2] .. %}
+        {% literal with [var1] [var2] .. %}
             .. some content to be rendered a second time ..
         {% endliteral %}
 
