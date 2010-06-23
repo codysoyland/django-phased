@@ -32,8 +32,11 @@ class TwoPhaseTestCase(unittest.TestCase):
         self.assertEqual(first_render, '%s{%% if 1 %%}test{%% endif %%}%sTEST' % (settings.LITERAL_DELIMITER, settings.LITERAL_DELIMITER))
 
     def test_second_pass(self):
+        request = HttpRequest()
+        request.method = 'GET'
+
         first_render = compile_string(self.test_template, None).render(Context({'test_var': 'TEST'}))
-        second_render = second_pass_render(first_render, context_instance=Context())
+        second_render = second_pass_render(request, first_render)
         self.assertEqual(second_render, 'testTEST')
 
 class FancyTwoPhaseTestCase(TwoPhaseTestCase):
@@ -52,8 +55,11 @@ class FancyTwoPhaseTestCase(TwoPhaseTestCase):
         self.assertEqual(first_render, 'fancydelimiter{% if 1 %}test{% endif %}fancydelimiterTEST')
 
     def test_second_pass(self):
+        request = HttpRequest()
+        request.method = 'GET'
+
         first_render = compile_string(self.test_template, None).render(Context({'test_var': 'TEST'}))
-        second_render = second_pass_render(first_render, context_instance=Context())
+        second_render = second_pass_render(request, first_render)
         self.assertEqual(second_render, 'testTEST')
 
 
@@ -86,14 +92,15 @@ class StashedTestCase(TwoPhaseTestCase):
         self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST%(delimiter)s{%% if 1 %%}test2{%% endif %%}{%% if test_condition2 %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)s' % dict(delimiter=settings.LITERAL_DELIMITER, pickled_context=pickled_context))
 
     def test_second_pass(self):
+        request = HttpRequest()
+        request.method = 'GET'
         context = Context({
             'test_var': 'TEST',
             'test_condition': True,
             'test_condition2': True,
         })
         first_render = compile_string(self.test_template, None).render(context)
-        original_context = unpickle_context(first_render)
-        second_render = second_pass_render(first_render, dictionary=original_context, context_instance=Context({'test_condition': False}))
+        second_render = second_pass_render(request, first_render)
         self.assertEqual(second_render, 'teststashedTESTtest2stashed')
 
 
@@ -121,6 +128,8 @@ class PickyStashedTestCase(StashedTestCase):
         self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.LITERAL_DELIMITER, pickled_context=pickled_context))
 
     def test_second_pass(self):
+        request = HttpRequest()
+        request.method = 'GET'
         context = Context({
             'test_var': 'TEST',
             'test_var2': 'TEST2',
@@ -129,7 +138,7 @@ class PickyStashedTestCase(StashedTestCase):
         first_render = compile_string(self.test_template, None).render(context)
         original_context = unpickle_context(first_render)
         self.assertEqual(original_context.get('test_var'), 'TEST')
-        second_render = second_pass_render(first_render, dictionary=original_context)
+        second_render = second_pass_render(request, first_render)
         self.assertEqual(second_render, 'teststashedTEST')
 
 

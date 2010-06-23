@@ -1,5 +1,5 @@
 import re, base64
-from django.template.context import Context, BaseContext
+from django.template.context import BaseContext, RequestContext
 from django.template import (Parser, Lexer, Token,
     TOKEN_TEXT, COMMENT_TAG_START, COMMENT_TAG_END, TemplateSyntaxError)
 from django.utils.cache import cc_delim_re
@@ -17,7 +17,7 @@ from phased import settings
 pickled_context_re = re.compile(r'.*%s stashed context: "(.*)" %s.*' % (COMMENT_TAG_START, COMMENT_TAG_END))
 forbidden_classes = (Promise, LazyObject, HttpRequest, BaseStorage)
 
-def second_pass_render(content, dictionary=None, context_instance=None):
+def second_pass_render(request, content):
     """
     Split on the literal delimiter and generate the token list by passing
     through text outside of literal blocks as single text tokens and tokenizing
@@ -25,18 +25,15 @@ def second_pass_render(content, dictionary=None, context_instance=None):
     literal blocks is tokenized, thus eliminating the possibility of a template
     code injection vulnerability.
     """
-    dictionary = dictionary or {}
-    tokens = []
+    result = tokens = []
     for index, bit in enumerate(content.split(settings.LITERAL_DELIMITER)):
         if index % 2:
-            tokens += Lexer(bit, None).tokenize()
+            tokens = Lexer(bit, None).tokenize()
         else:
             tokens.append(Token(TOKEN_TEXT, bit))
-    if context_instance:
-        context_instance.update(dictionary)
-    else:
-        context_instance = Context(dictionary)
-    return Parser(tokens).parse().render(context_instance)
+        context = RequestContext(request, unpickle_context(bit))
+        result.append(Parser(tokens).parse().render(context))
+    return "".join(result)
 
 def drop_vary_headers(response, headers_to_drop):
     """
@@ -83,7 +80,7 @@ def unpickle_context(content, pattern=None):
     """
     if pattern is None:
         pattern = pickled_context_re
-    match = pattern.match(content)
+    match = pattern.search(content)
     if match:
         return pickle.loads(base64.standard_b64decode(match.group(1)))
     return None

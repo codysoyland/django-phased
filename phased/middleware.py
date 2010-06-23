@@ -1,19 +1,13 @@
 from django.middleware.cache import UpdateCacheMiddleware
-from django.template.context import RequestContext
 from django.utils.cache import patch_vary_headers
-from phased import settings
-from phased.utils import second_pass_render, drop_vary_headers, unpickle_context
+from phased.utils import second_pass_render, drop_vary_headers
 
 
 class PhasedRenderMiddleware(object):
     def process_response(self, request, response):
         if not response['content-type'].startswith("text/html"):
             return response
-        context = None
-        if settings.KEEP_CONTEXT:
-            context = unpickle_context(response.content)
-        response.content = second_pass_render(response.content, context,
-            context_instance=RequestContext(request))
+        response.content = second_pass_render(request, response.content)
         response['Content-Length'] = str(len(response.content))
         return response
 
