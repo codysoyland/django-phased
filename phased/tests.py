@@ -1,7 +1,13 @@
 import re, unittest
 from django.template import compile_string, Context, TemplateSyntaxError
-
-from phased.utils import second_pass_render, pickle_context, unpickle_context, flatten_context
+from django.http import HttpRequest, HttpResponse
+from django.middleware.cache import FetchFromCacheMiddleware, UpdateCacheMiddleware
+from django.contrib.auth.middleware import AuthenticationMiddleware
+from django.contrib.sessions.middleware import SessionMiddleware
+from django.core.cache import cache
+from django.utils.cache import patch_vary_headers
+from phased.utils import second_pass_render, pickle_context, unpickle_context, flatten_context, drop_vary_headers
+from phased.middleware import PhasedRenderMiddleware, PatchedVaryUpdateCacheMiddleware
 from phased import settings
 
 class TwoPhaseTestCase(unittest.TestCase):
@@ -158,4 +164,121 @@ class UtilsTestCase(unittest.TestCase):
         self.assertEqual(flatten_context(context), unpickled_context)
 
 
-# TODO: more tests for phased rendering and tests for middleware and header hacks
+class PhasedRenderMiddlewareTestCase(unittest.TestCase):
+    def test_basic(self):
+        request = HttpRequest()
+        response = HttpResponse(
+            'before '
+            '%(delimiter)s '
+            'inside{# a comment #} '
+            '%(delimiter)s '
+            'after' % dict(delimiter=settings.LITERAL_DELIMITER))
+
+        response = PhasedRenderMiddleware().process_response(request, response)
+
+        self.assertEqual(response.content, 'before  inside  after')
+
+class PatchedVaryUpdateCacheMiddlewareTestCase(unittest.TestCase):
+
+    def setUp(self):
+        # clear cache
+        for key in cache._cache.keys():
+            cache.delete(key)
+
+    def test_no_vary(self):
+        """
+        Ensure basic caching works.
+        """
+        request = HttpRequest()
+        request.method = 'GET'
+        response = HttpResponse()
+
+        SessionMiddleware().process_request(request)
+        AuthenticationMiddleware().process_request(request)
+
+        cache_hit = FetchFromCacheMiddleware().process_request(request)
+        self.assertEqual(cache_hit, None)
+
+        response = PatchedVaryUpdateCacheMiddleware().process_response(request, response)
+        cache_hit = FetchFromCacheMiddleware().process_request(request)
+
+        self.assertTrue(isinstance(cache_hit, HttpResponse))
+
+    def test_vary(self):
+        """
+        Ensure caching works even when cookies are present and `Vary: Cookie` is on.
+        """
+        request = HttpRequest()
+        request.method = 'GET'
+        request.COOKIES = {'test': 'foo'}
+        request.META['HTTP_COOKIE'] = 'test=foo'
+
+        response = HttpResponse()
+        patch_vary_headers(response, ['Cookie'])
+        response.set_cookie('test', 'foo')
+
+        SessionMiddleware().process_request(request)
+        AuthenticationMiddleware().process_request(request)
+
+        cache_hit = FetchFromCacheMiddleware().process_request(request)
+        self.assertEqual(cache_hit, None)
+
+        response = PatchedVaryUpdateCacheMiddleware().process_response(request, response)
+        cache_hit = FetchFromCacheMiddleware().process_request(request)
+
+        self.assertTrue(isinstance(cache_hit, HttpResponse))
+
+        new_request = HttpRequest()
+        new_request.method = 'GET'
+        # note: not using cookies here. this demonstrates that cookies don't
+        # affect the cache key
+        cache_hit = FetchFromCacheMiddleware().process_request(new_request)
+        self.assertTrue(isinstance(cache_hit, HttpResponse))
+
+    def test_vary_with_original_update_cache_middleware(self):
+        """
+        Mainly to demonstrate the need to remove the Vary: Cookie header
+        during caching. Same basic test as test_vary() but with django's
+        UpdateCacheMiddleware instead of PatchedVaryUpdateCacheMiddleware.
+        This does not get a cache hit if the cookies are not the same.
+        """
+        request = HttpRequest()
+        request.method = 'GET'
+        request.COOKIES = {'test': 'foo'}
+        request.META['HTTP_COOKIE'] = 'test=foo'
+
+        response = HttpResponse()
+        patch_vary_headers(response, ['Cookie'])
+        response.set_cookie('test', 'foo')
+
+        SessionMiddleware().process_request(request)
+        AuthenticationMiddleware().process_request(request)
+
+        cache_hit = FetchFromCacheMiddleware().process_request(request)
+        self.assertEqual(cache_hit, None)
+
+        response = UpdateCacheMiddleware().process_response(request, response)
+        cache_hit = FetchFromCacheMiddleware().process_request(request)
+
+        self.assertTrue(isinstance(cache_hit, HttpResponse))
+
+        new_request = HttpRequest()
+        new_request.method = 'GET'
+        # note: not using cookies here. this demonstrates that cookies don't
+        # affect the cache key
+        cache_hit = FetchFromCacheMiddleware().process_request(new_request)
+        self.assertEqual(cache_hit, None)
+
+    def test_drop_vary_headers(self):
+        response = HttpResponse()
+
+        self.assertFalse(response.has_header('Vary'))
+        patch_vary_headers(response, ['Cookie'])
+        self.assertTrue(response.has_header('Vary'))
+        self.assertEqual(response['Vary'], 'Cookie')
+        patch_vary_headers(response, ['Nomnomnom'])
+        self.assertEqual(response['Vary'], 'Cookie, Nomnomnom')
+        drop_vary_headers(response, ['Cookie'])
+        self.assertEqual(response['Vary'], 'Nomnomnom')
+        drop_vary_headers(response, ['Nomnomnom'])
+        self.assertFalse(response.has_header('Vary'))
