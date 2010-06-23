@@ -8,7 +8,7 @@ README = read('README.md')
 
 setup(
     name = "django-phased",
-    version = "0.1a1",
+    version = "0.2.0",
     url = 'http://github.com/codysoyland/django-phased',
     license = 'BSD',
     description = "Simple two-phase template rendering application useful for caching of authenticated requests.",
