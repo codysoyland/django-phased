@@ -4,7 +4,7 @@ from django.template import (Parser, Lexer, Token,
     TOKEN_TEXT, COMMENT_TAG_START, COMMENT_TAG_END, TemplateSyntaxError)
 from django.utils.cache import cc_delim_re
 from django.utils.functional import Promise, LazyObject
-from django.http import HttpResponse, HttpRequest
+from django.http import HttpRequest
 from django.contrib.messages.storage.base import BaseStorage
 
 try:
