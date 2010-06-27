@@ -9,9 +9,9 @@
 <body id="{% block body_id %}{% endblock %}" class="{% block body_class %}{% endblock %}">
   <div id="body">
     {% load phased_tags %}
-    {% literal %}
+    {% phased %}
         Hi, {{ user.username }}
-    {% endliteral %}
+    {% endphased %}
     {% block body %}
       <div class="content_title">
         {% block content_title %}{% endblock %}

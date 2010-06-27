@@ -19,14 +19,14 @@ forbidden_classes = (Promise, LazyObject, HttpRequest, BaseStorage)
 
 def second_pass_render(request, content):
     """
-    Split on the literal delimiter and generate the token list by passing
-    through text outside of literal blocks as single text tokens and tokenizing
-    text inside the literal blocks. This ensures that nothing outside of the
-    literal blocks is tokenized, thus eliminating the possibility of a template
+    Split on the secret delimiter and generate the token list by passing
+    through text outside of phased blocks as single text tokens and tokenizing
+    text inside the phased blocks. This ensures that nothing outside of the
+    phased blocks is tokenized, thus eliminating the possibility of a template
     code injection vulnerability.
     """
     result = tokens = []
-    for index, bit in enumerate(content.split(settings.LITERAL_DELIMITER)):
+    for index, bit in enumerate(content.split(settings.SECRET_DELIMITER)):
         if index % 2:
             tokens = Lexer(bit, None).tokenize()
         else:
@@ -90,7 +90,7 @@ def pickle_context(context, template=None):
     Pickle the given Context instance and do a few optimzations before.
     """
     if not isinstance(context, BaseContext):
-        raise TemplateSyntaxError('Literal context is not a Context instance')
+        raise TemplateSyntaxError('Phased context is not a Context instance')
     pickled_context = pickle.dumps(flatten_context(context), protocol=pickle.HIGHEST_PROTOCOL)
     if template is None:
         template = '{# stashed context: "%s" #}'

@@ -14,9 +14,9 @@ class TwoPhaseTestCase(unittest.TestCase):
 
     test_template = (
         "{% load phased_tags %}"
-        "{% literal %}"
+        "{% phased %}"
         "{% if 1 %}test{% endif %}"
-        "{% endliteral %}"
+        "{% endphased %}"
         "{{ test_var }}"
     )
     def setUp(self):
@@ -26,10 +26,10 @@ class TwoPhaseTestCase(unittest.TestCase):
     def tearDown(self):
         settings.KEEP_CONTEXT = self.old_keep_context
 
-    def test_literal(self):
+    def test_phased(self):
         context = Context({'test_var': 'TEST'})
         first_render = compile_string(self.test_template, None).render(context)
-        self.assertEqual(first_render, '%s{%% if 1 %%}test{%% endif %%}%sTEST' % (settings.LITERAL_DELIMITER, settings.LITERAL_DELIMITER))
+        self.assertEqual(first_render, '%s{%% if 1 %%}test{%% endif %%}%sTEST' % (settings.SECRET_DELIMITER, settings.SECRET_DELIMITER))
 
     def test_second_pass(self):
         request = HttpRequest()
@@ -41,15 +41,15 @@ class TwoPhaseTestCase(unittest.TestCase):
 
 class FancyTwoPhaseTestCase(TwoPhaseTestCase):
     def setUp(self):
-        self.old_literal_delimiter = settings.LITERAL_DELIMITER
-        settings.LITERAL_DELIMITER = "fancydelimiter"
+        self.old_secret_delimiter = settings.SECRET_DELIMITER
+        settings.SECRET_DELIMITER = "fancydelimiter"
         super(FancyTwoPhaseTestCase, self).setUp()
 
     def tearDown(self):
-        settings.LITERAL_DELIMITER = self.old_literal_delimiter
+        settings.SECRET_DELIMITER = self.old_secret_delimiter
         super(FancyTwoPhaseTestCase, self).tearDown()
 
-    def test_literal(self):
+    def test_phased(self):
         context = Context({'test_var': 'TEST'})
         first_render = compile_string(self.test_template, None).render(context)
         self.assertEqual(first_render, 'fancydelimiter{% if 1 %}test{% endif %}fancydelimiterTEST')
@@ -67,29 +67,29 @@ class FancyTwoPhaseTestCase(TwoPhaseTestCase):
 class StashedTestCase(TwoPhaseTestCase):
     test_template = (
         "{% load phased_tags %}"
-        "{% literal %}"
+        "{% phased %}"
         "{% if 1 %}test{% endif %}"
         "{% if test_condition %}"
         "stashed"
         "{% endif %}"
-        "{% endliteral %}"
+        "{% endphased %}"
         "{{ test_var }}"
-        "{% literal %}"
+        "{% phased %}"
         "{% if 1 %}test2{% endif %}"
         "{% if test_condition2 %}"
         "stashed"
         "{% endif %}"
-        "{% endliteral %}"
+        "{% endphased %}"
     )
     def setUp(self):
         super(StashedTestCase, self).setUp()
         settings.KEEP_CONTEXT = True
 
-    def test_literal(self):
+    def test_phased(self):
         context = Context({'test_var': 'TEST'})
         pickled_context = pickle_context(context)
         first_render = compile_string(self.test_template, None).render(context)
-        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST%(delimiter)s{%% if 1 %%}test2{%% endif %%}{%% if test_condition2 %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)s' % dict(delimiter=settings.LITERAL_DELIMITER, pickled_context=pickled_context))
+        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST%(delimiter)s{%% if 1 %%}test2{%% endif %%}{%% if test_condition2 %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)s' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
 
     def test_second_pass(self):
         request = HttpRequest()
@@ -107,15 +107,15 @@ class StashedTestCase(TwoPhaseTestCase):
 class PickyStashedTestCase(StashedTestCase):
     test_template = (
         '{% load phased_tags %}'
-        '{% literal with "test_var" test_condition %}'
+        '{% phased with "test_var" test_condition %}'
         '{% if 1 %}test{% endif %}'
         '{% if test_condition %}'
         'stashed'
         '{% endif %}'
-        '{% endliteral %}'
+        '{% endphased %}'
         '{{ test_var }}'
     )
-    def test_literal(self):
+    def test_phased(self):
         context = Context({'test_var': 'TEST'})
         self.assertRaises(TemplateSyntaxError,
             compile_string(self.test_template, None).render, context)
@@ -125,7 +125,7 @@ class PickyStashedTestCase(StashedTestCase):
         })
         pickled_context = pickle_context(context)
         first_render = compile_string(self.test_template, None).render(context)
-        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.LITERAL_DELIMITER, pickled_context=pickled_context))
+        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
 
     def test_second_pass(self):
         request = HttpRequest()
@@ -181,7 +181,7 @@ class PhasedRenderMiddlewareTestCase(unittest.TestCase):
             '%(delimiter)s '
             'inside{# a comment #} '
             '%(delimiter)s '
-            'after' % dict(delimiter=settings.LITERAL_DELIMITER))
+            'after' % dict(delimiter=settings.SECRET_DELIMITER))
 
         response = PhasedRenderMiddleware().process_response(request, response)
 
