@@ -32,7 +32,10 @@ def second_pass_render(request, content):
         else:
             tokens.append(Token(TOKEN_TEXT, bit))
         context = RequestContext(request, unpickle_context(bit))
-        result.append(Parser(tokens).parse().render(context))
+        rendered = Parser(tokens).parse().render(context)
+        if settings.SECRET_DELIMITER in rendered:
+            rendered = second_pass_render(request, rendered)
+        result.append(rendered)
     return "".join(result)
 
 def drop_vary_headers(response, headers_to_drop):

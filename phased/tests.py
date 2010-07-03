@@ -63,6 +63,32 @@ class FancyTwoPhaseTestCase(TwoPhaseTestCase):
         self.assertEqual(second_render, 'testTEST')
 
 
+class NestedTwoPhaseTestCase(TwoPhaseTestCase):
+    test_template = (
+        "{% load phased_tags %}"
+        "{% phased %}"
+        "{% load phased_tags %}"
+        "{% phased %}"
+        "{% if 1 %}first{% endif %}"
+        "{% endphased %}"
+        "{% if 1 %}second{% endif %}"
+        "{% endphased %}"
+        "{{ test_var }}"
+    )
+
+    def test_phased(self):
+        context = Context({'test_var': 'TEST'})
+        first_render = compile_string(self.test_template, None).render(context)
+        self.assertEqual(first_render, '%(del)s{%% load phased_tags %%}{%% phased %%}{%% if 1 %%}first{%% endif %%}{%% endphased %%}{%% if 1 %%}second{%% endif %%}%(del)sTEST' % {'del': settings.SECRET_DELIMITER})
+
+    def test_second_pass(self):
+        request = HttpRequest()
+        request.method = 'GET'
+
+        first_render = compile_string(self.test_template, None).render(Context({'test_var': 'TEST'}))
+        second_render = second_pass_render(request, first_render)
+        self.assertEqual(second_render, 'firstsecondTEST')
+
 
 class StashedTestCase(TwoPhaseTestCase):
     test_template = (
