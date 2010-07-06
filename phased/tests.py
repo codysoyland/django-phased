@@ -175,6 +175,11 @@ class UtilsTestCase(unittest.TestCase):
         context.update({'test_var': 'TEST2', 'abc': 'def'})
         self.assertEqual(flatten_context(context), {'test_var': 'TEST2', 'abc': 'def'})
 
+    def test_flatten_nested(self):
+        context = Context({'test_var': 'TEST'})
+        context.update(Context({'test_var': 'TEST2', 'abc': 'def'}))
+        self.assertEqual(flatten_context(context), {'test_var': 'TEST2', 'abc': 'def'})
+
     def test_pickling(self):
         self.assertRaises(TemplateSyntaxError, pickle_context, {})
         self.assertEqual(pickle_context(Context()), '{# stashed context: "gAJ9Lg==" #}')

@@ -69,12 +69,23 @@ def flatten_context(context, remove_lazy=True):
     e.g. lazy objects.
     """
     flat_context = {}
-    for context_dict in context.dicts:
-        if remove_lazy:
-            result = dict((k, v) for k, v in context_dict.iteritems() if not isinstance(v, forbidden_classes))
-            flat_context.update(result)
-        else:
-            flat_context.update(context_dict)
+    def _flatten(context):
+        if isinstance(context, dict):
+            for k, v in context.items():
+                if isinstance(context, BaseContext):
+                    _flatten(context)
+                else:
+                    flat_context[k] = v
+        elif isinstance(context, BaseContext):
+            for context_dict in context.dicts:
+                _flatten(context_dict)
+
+    # traverse the passed context and update the dictionary accordingly
+    _flatten(context)
+
+    if remove_lazy:
+        only_allowed = lambda dic: not isinstance(dic[1], forbidden_classes)
+        return dict(filter(only_allowed, flat_context.iteritems()))
     return flat_context
 
 def unpickle_context(content, pattern=None):
