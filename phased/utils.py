@@ -1,11 +1,13 @@
 import re, base64
-from django.template.context import BaseContext, RequestContext
+from django.conf import settings as django_settings
+from django.template.context import BaseContext, RequestContext, Context
 from django.template import (Parser, Lexer, Token,
     TOKEN_TEXT, COMMENT_TAG_START, COMMENT_TAG_END, TemplateSyntaxError)
 from django.utils.cache import cc_delim_re
 from django.utils.functional import Promise, LazyObject
 from django.http import HttpRequest
 from django.contrib.messages.storage.base import BaseStorage
+from django.utils.encoding import smart_str
 
 try:
     import cPickle as pickle
@@ -31,12 +33,42 @@ def second_pass_render(request, content):
             tokens = Lexer(bit, None).tokenize()
         else:
             tokens.append(Token(TOKEN_TEXT, bit))
-        context = RequestContext(request, unpickle_context(bit))
+
+        context = RequestContext(request,
+            restore_csrf_token(request, unpickle_context(bit)))
         rendered = Parser(tokens).parse().render(context)
+
         if settings.SECRET_DELIMITER in rendered:
             rendered = second_pass_render(request, rendered)
         result.append(rendered)
+
     return "".join(result)
+
+def restore_csrf_token(request, storage=None):
+    """
+    Given the request and a the context used during the second render phase,
+    this wil check if there is a CSRF cookie and restores if needed, to
+    counteract the way the CSRF framework invalidates the CSRF token after
+    each request/response cycle.
+    """
+    if storage is None:
+        storage = {}
+    try:
+        request.META["CSRF_COOKIE"] = request.COOKIES[django_settings.CSRF_COOKIE_NAME]
+    except KeyError:
+        csrf_token = storage.get('csrf_token', None)
+        if csrf_token:
+            request.META["CSRF_COOKIE"] = csrf_token
+    return storage
+
+def backup_csrf_token(context, storage=None):
+    """
+    Get the CSRF token and convert it to a string (since it's lazy)
+    """
+    if storage is None:
+        storage = Context()
+    storage['csrf_token'] = smart_str(context.get('csrf_token', 'NOTPROVIDED'))
+    return storage
 
 def drop_vary_headers(response, headers_to_drop):
     """

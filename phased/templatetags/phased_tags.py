@@ -1,10 +1,10 @@
-from django.template import (Library, Node, resolve_variable,
+from django.template import (Library, Node, Variable,
     TOKEN_BLOCK, TOKEN_COMMENT, TOKEN_TEXT, TOKEN_VAR,
     TemplateSyntaxError, VariableDoesNotExist, Context)
 from django.utils.encoding import smart_str
 
 from phased import settings
-from phased.utils import pickle_context
+from phased.utils import pickle_context, flatten_context, backup_csrf_token
 
 register = Library()
 
@@ -43,24 +43,30 @@ class PhasedNode(Node):
                 errors='replace')
 
     def render(self, context):
-        stash = {}
+        # our main context
+        storage = Context()
+
+        # stash the whole context if needed
+        if settings.KEEP_CONTEXT:
+            storage.update(flatten_context(context))
+
+        # but check if there are variables specifically wanted
         for var_name in self.var_names:
             if var_name[0] in ('"', "'") and var_name[-1] == var_name[0]:
                 var_name = var_name[1:-1]
             try:
-                stash[var_name] = resolve_variable(var_name, context)
+                storage[var_name] = Variable(var_name).resolve(context)
             except VariableDoesNotExist:
                 raise TemplateSyntaxError(
                     '"phased" tag got an unknown variable: %r' % var_name)
-        pickled = None
-        if not stash and settings.KEEP_CONTEXT:
-            pickled = pickle_context(context)
-        elif stash:
-            pickled = pickle_context(Context(stash))
-        return '%(delimiter)s%(content)s%(pickled)s%(delimiter)s' % {
-            'delimiter': settings.SECRET_DELIMITER,
+
+        storage = backup_csrf_token(context, storage)
+
+        # lastly return the pre phased template part
+        return u'%(delimiter)s%(content)s%(pickled)s%(delimiter)s' % {
             'content': self.content,
-            'pickled': pickled or '',
+            'delimiter': settings.SECRET_DELIMITER,
+            'pickled': pickle_context(storage),
         }
 
 

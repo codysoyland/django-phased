@@ -6,7 +6,8 @@ from django.contrib.auth.middleware import AuthenticationMiddleware
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.core.cache import cache
 from django.utils.cache import patch_vary_headers
-from phased.utils import second_pass_render, pickle_context, unpickle_context, flatten_context, drop_vary_headers
+
+from phased.utils import second_pass_render, pickle_context, unpickle_context, flatten_context, drop_vary_headers, backup_csrf_token
 from phased.middleware import PhasedRenderMiddleware, PatchedVaryUpdateCacheMiddleware
 from phased import settings
 
@@ -29,7 +30,10 @@ class TwoPhaseTestCase(unittest.TestCase):
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
         first_render = compile_string(self.test_template, None).render(context)
-        self.assertEqual(first_render, '%s{%% if 1 %%}test{%% endif %%}%sTEST' % (settings.SECRET_DELIMITER, settings.SECRET_DELIMITER))
+        original_context = unpickle_context(first_render)
+        self.assertNotEqual(flatten_context(context), original_context)
+        pickled_context = '{# stashed context: "gAJ9cQFVCmNzcmZfdG9rZW5xAlULTk9UUFJPVklERURxA3Mu" #}'
+        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
 
     def test_second_pass(self):
         request = HttpRequest()
@@ -52,7 +56,7 @@ class FancyTwoPhaseTestCase(TwoPhaseTestCase):
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
         first_render = compile_string(self.test_template, None).render(context)
-        self.assertEqual(first_render, 'fancydelimiter{% if 1 %}test{% endif %}fancydelimiterTEST')
+        self.assertEqual(first_render, 'fancydelimiter{%% if 1 %%}test{%% endif %%}%sfancydelimiterTEST' % pickle_context(backup_csrf_token(context)))
 
     def test_second_pass(self):
         request = HttpRequest()
@@ -79,7 +83,7 @@ class NestedTwoPhaseTestCase(TwoPhaseTestCase):
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
         first_render = compile_string(self.test_template, None).render(context)
-        self.assertEqual(first_render, '%(del)s{%% load phased_tags %%}{%% phased %%}{%% if 1 %%}first{%% endif %%}{%% endphased %%}{%% if 1 %%}second{%% endif %%}%(del)sTEST' % {'del': settings.SECRET_DELIMITER})
+        self.assertEqual(first_render, '%(delimiter)s{%% load phased_tags %%}{%% phased %%}{%% if 1 %%}first{%% endif %%}{%% endphased %%}{%% if 1 %%}second{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickle_context(backup_csrf_token(context))))
 
     def test_second_pass(self):
         request = HttpRequest()
@@ -113,7 +117,7 @@ class StashedTestCase(TwoPhaseTestCase):
 
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
-        pickled_context = pickle_context(context)
+        pickled_context = '{# stashed context: "gAJ9cQEoVQpjc3JmX3Rva2VucQJVC05PVFBST1ZJREVEcQNVCHRlc3RfdmFycQRVBFRFU1RxBXUu" #}'
         first_render = compile_string(self.test_template, None).render(context)
         self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST%(delimiter)s{%% if 1 %%}test2{%% endif %%}{%% if test_condition2 %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)s' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
 
@@ -143,14 +147,13 @@ class PickyStashedTestCase(StashedTestCase):
     )
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
-        self.assertRaises(TemplateSyntaxError,
-            compile_string(self.test_template, None).render, context)
+        self.assertRaises(TemplateSyntaxError, compile_string(self.test_template, None).render, context)
         context = Context({
             'test_var': 'TEST',
             'test_condition': True,
         })
-        pickled_context = pickle_context(context)
         first_render = compile_string(self.test_template, None).render(context)
+        pickled_context = '{# stashed context: "gAJ9cQEoVQ50ZXN0X2NvbmRpdGlvbnECiFUKY3NyZl90b2tlbnEDVQtOT1RQUk9WSURFRHEEVQh0ZXN0X3ZhcnEFVQRURVNUcQZ1Lg==" #}'
         self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
 
     def test_second_pass(self):
