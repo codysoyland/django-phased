@@ -32,8 +32,9 @@ class TwoPhaseTestCase(unittest.TestCase):
         first_render = compile_string(self.test_template, None).render(context)
         original_context = unpickle_context(first_render)
         self.assertNotEqual(flatten_context(context), original_context)
-        pickled_context = '{# stashed context: "gAJ9cQFVCmNzcmZfdG9rZW5xAlULTk9UUFJPVklERURxA3Mu" #}'
-        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
+        pickled_context = '{# context "gAJ9cQFVCmNzcmZfdG9rZW5xAlULTk9UUFJPVklERURxA3Mu" endcontext #}'
+        pickled_components = '{# components "gAJdcQFVH3BoYXNlZC50ZW1wbGF0ZXRhZ3MucGhhc2VkX3RhZ3NxAmEu" endcomponents #}'
+        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}%(pickled_context)s%(pickled_components)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context, pickled_components=pickled_components))
 
     def test_second_pass(self):
         request = HttpRequest()
@@ -56,7 +57,8 @@ class FancyTwoPhaseTestCase(TwoPhaseTestCase):
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
         first_render = compile_string(self.test_template, None).render(context)
-        self.assertEqual(first_render, 'fancydelimiter{%% if 1 %%}test{%% endif %%}%sfancydelimiterTEST' % pickle_context(backup_csrf_token(context)))
+        pickled_components = '{# components "gAJdcQFVH3BoYXNlZC50ZW1wbGF0ZXRhZ3MucGhhc2VkX3RhZ3NxAmEu" endcomponents #}'
+        self.assertEqual(first_render, 'fancydelimiter{%% if 1 %%}test{%% endif %%}%s%sfancydelimiterTEST' % (pickle_context(backup_csrf_token(context)), pickled_components))
 
     def test_second_pass(self):
         request = HttpRequest()
@@ -83,7 +85,8 @@ class NestedTwoPhaseTestCase(TwoPhaseTestCase):
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
         first_render = compile_string(self.test_template, None).render(context)
-        self.assertEqual(first_render, '%(delimiter)s{%% load phased_tags %%}{%% phased %%}{%% if 1 %%}first{%% endif %%}{%% endphased %%}{%% if 1 %%}second{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickle_context(backup_csrf_token(context))))
+        pickled_components = '{# components "gAJdcQFVH3BoYXNlZC50ZW1wbGF0ZXRhZ3MucGhhc2VkX3RhZ3NxAmEu" endcomponents #}'
+        self.assertEqual(first_render, '%(delimiter)s{%% load phased_tags %%}{%% phased %%}{%% if 1 %%}first{%% endif %%}{%% endphased %%}{%% if 1 %%}second{%% endif %%}%(pickled_context)s%(pickled_components)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickle_context(backup_csrf_token(context)), pickled_components=pickled_components))
 
     def test_second_pass(self):
         request = HttpRequest()
@@ -117,9 +120,10 @@ class StashedTestCase(TwoPhaseTestCase):
 
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
-        pickled_context = '{# stashed context: "gAJ9cQEoVQpjc3JmX3Rva2VucQJVC05PVFBST1ZJREVEcQNVCHRlc3RfdmFycQRVBFRFU1RxBXUu" #}'
+        pickled_context = '{# context "gAJ9cQEoVQpjc3JmX3Rva2VucQJVC05PVFBST1ZJREVEcQNVCHRlc3RfdmFycQRVBFRFU1RxBXUu" endcontext #}'
+        pickled_components = '{# components "gAJdcQFVH3BoYXNlZC50ZW1wbGF0ZXRhZ3MucGhhc2VkX3RhZ3NxAmEu" endcomponents #}'
         first_render = compile_string(self.test_template, None).render(context)
-        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST%(delimiter)s{%% if 1 %%}test2{%% endif %%}{%% if test_condition2 %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)s' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
+        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(pickled_components)s%(delimiter)sTEST%(delimiter)s{%% if 1 %%}test2{%% endif %%}{%% if test_condition2 %%}stashed{%% endif %%}%(pickled_context)s{# components "gAJdcQFVH3BoYXNlZC50ZW1wbGF0ZXRhZ3MucGhhc2VkX3RhZ3NxAmEu" endcomponents #}%(delimiter)s' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context, pickled_components=pickled_components))
 
     def test_second_pass(self):
         request = HttpRequest()
@@ -153,8 +157,9 @@ class PickyStashedTestCase(StashedTestCase):
             'test_condition': True,
         })
         first_render = compile_string(self.test_template, None).render(context)
-        pickled_context = '{# stashed context: "gAJ9cQEoVQ50ZXN0X2NvbmRpdGlvbnECiFUKY3NyZl90b2tlbnEDVQtOT1RQUk9WSURFRHEEVQh0ZXN0X3ZhcnEFVQRURVNUcQZ1Lg==" #}'
-        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
+        pickled_context = '{# context "gAJ9cQEoVQ50ZXN0X2NvbmRpdGlvbnECiFUKY3NyZl90b2tlbnEDVQtOT1RQUk9WSURFRHEEVQh0ZXN0X3ZhcnEFVQRURVNUcQZ1Lg==" endcontext #}'
+        pickled_components = '{# components "gAJdcQFVH3BoYXNlZC50ZW1wbGF0ZXRhZ3MucGhhc2VkX3RhZ3NxAmEu" endcomponents #}'
+        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(pickled_components)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context, pickled_components=pickled_components))
 
     def test_second_pass(self):
         request = HttpRequest()
@@ -185,10 +190,10 @@ class UtilsTestCase(unittest.TestCase):
 
     def test_pickling(self):
         self.assertRaises(TemplateSyntaxError, pickle_context, {})
-        self.assertEqual(pickle_context(Context()), '{# stashed context: "gAJ9Lg==" #}')
+        self.assertEqual(pickle_context(Context()), '{# context "gAJ9Lg==" endcontext #}')
         context = Context({'test_var': 'TEST'})
         template = '<!-- better be careful %s yikes -->'
-        self.assertEqual(pickle_context(context), '{# stashed context: "gAJ9cQFVCHRlc3RfdmFycQJVBFRFU1RxA3Mu" #}')
+        self.assertEqual(pickle_context(context), '{# context "gAJ9cQFVCHRlc3RfdmFycQJVBFRFU1RxA3Mu" endcontext #}')
         self.assertEqual(pickle_context(context, template), '<!-- better be careful gAJ9cQFVCHRlc3RfdmFycQJVBFRFU1RxA3Mu yikes -->')
 
     def test_unpickling(self):

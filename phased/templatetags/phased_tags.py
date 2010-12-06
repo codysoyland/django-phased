@@ -4,7 +4,8 @@ from django.template import (Library, Node, Variable,
 from django.utils.encoding import smart_str
 
 from phased import settings
-from phased.utils import pickle_context, flatten_context, backup_csrf_token
+from phased.utils import (pickle_context, flatten_context,
+    backup_csrf_token, pickle_components, find_components)
 
 register = Library()
 
@@ -34,9 +35,10 @@ class PhasedNode(Node):
     block with pickled context, enclosed in a delimited block that can be
     parsed by the second pass rendering middleware.
     """
-    def __init__(self, content, var_names):
-        self.var_names = var_names
+    def __init__(self, content, var_names, components=None):
         self.content = content
+        self.var_names = var_names
+        self.components = components or []
 
     def __repr__(self):
         return "<Phased Node: '%s'>" % smart_str(self.content[:25], 'ascii',
@@ -60,13 +62,12 @@ class PhasedNode(Node):
                 raise TemplateSyntaxError(
                     '"phased" tag got an unknown variable: %r' % var_name)
 
-        storage = backup_csrf_token(context, storage)
-
         # lastly return the pre phased template part
-        return u'%(delimiter)s%(content)s%(pickled)s%(delimiter)s' % {
+        return u'%(delimiter)s%(content)s%(pickled_context)s%(pickled_components)s%(delimiter)s' % {
             'content': self.content,
             'delimiter': settings.SECRET_DELIMITER,
-            'pickled': pickle_context(storage),
+            'pickled_context': pickle_context(backup_csrf_token(context, storage)),
+            'pickled_components': pickle_components(self.components),
         }
 
 
@@ -108,6 +109,6 @@ def do_phased(parser, token):
         raise TemplateSyntaxError(u"'%r' tag requires the second argument to be 'with'." % tokens[0])
         if len(tokens) == 2:
             raise TemplateSyntaxError(u"'%r' tag requires at least one context variable name." % tokens[0])
-    return PhasedNode(literal, tokens[2:])
+    return PhasedNode(literal, tokens[2:], components=find_components(parser))
 
 register.tag('phased', do_phased)
