@@ -1,23 +1,29 @@
-import re, base64
+import re
+import base64
 from django.conf import settings as django_settings
+from django.http import HttpRequest
+from django.template import (Parser, Lexer, Token, TOKEN_TEXT,
+    COMMENT_TAG_START, COMMENT_TAG_END, TemplateSyntaxError)
 from django.template.context import BaseContext, RequestContext, Context
-from django.template import (Parser, Lexer, Token,
-    TOKEN_TEXT, COMMENT_TAG_START, COMMENT_TAG_END, TemplateSyntaxError)
 from django.utils.cache import cc_delim_re
 from django.utils.functional import Promise, LazyObject
-from django.http import HttpRequest
 from django.contrib.messages.storage.base import BaseStorage
 from django.utils.encoding import smart_str
 
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+
+def get_pickle():
+    try:
+        import cPickle as pickle
+    except ImportError:
+        import pickle
+    return pickle
 
 from phased import settings
 
 pickled_context_re = re.compile(r'.*%s stashed context: "(.*)" %s.*' % (COMMENT_TAG_START, COMMENT_TAG_END))
+
 forbidden_classes = (Promise, LazyObject, HttpRequest, BaseStorage)
+
 
 def second_pass_render(request, content):
     """
@@ -94,6 +100,7 @@ def drop_vary_headers(response, headers_to_drop):
     else:
         del response['Vary']
 
+
 def flatten_context(context, remove_lazy=True):
     """
     Creates a dictionary from a Context instance by traversing
@@ -101,6 +108,7 @@ def flatten_context(context, remove_lazy=True):
     e.g. lazy objects.
     """
     flat_context = {}
+
     def _flatten(context):
         if isinstance(context, dict):
             for k, v in context.items():
@@ -120,10 +128,12 @@ def flatten_context(context, remove_lazy=True):
         return dict(filter(only_allowed, flat_context.iteritems()))
     return flat_context
 
+
 def unpickle_context(content, pattern=None):
     """
     Unpickle the context from the given content string or return None.
     """
+    pickle = get_pickle()
     if pattern is None:
         pattern = pickled_context_re
     match = pattern.search(content)
@@ -131,10 +141,12 @@ def unpickle_context(content, pattern=None):
         return pickle.loads(base64.standard_b64decode(match.group(1)))
     return None
 
+
 def pickle_context(context, template=None):
     """
     Pickle the given Context instance and do a few optimzations before.
     """
+    pickle = get_pickle()
     if not isinstance(context, BaseContext):
         raise TemplateSyntaxError('Phased context is not a Context instance')
     pickled_context = pickle.dumps(flatten_context(context), protocol=pickle.HIGHEST_PROTOCOL)
