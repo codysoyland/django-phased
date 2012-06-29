@@ -1,4 +1,6 @@
-import re, unittest
+import re
+import unittest
+
 from django.template import compile_string, Context, TemplateSyntaxError
 from django.http import HttpRequest, HttpResponse
 from django.middleware.cache import FetchFromCacheMiddleware, UpdateCacheMiddleware
@@ -6,10 +8,18 @@ from django.contrib.auth.middleware import AuthenticationMiddleware
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.core.cache import cache
 from django.utils.cache import patch_vary_headers
+from django.test.client import RequestFactory
 
 from phased.utils import second_pass_render, pickle_context, unpickle_context, flatten_context, drop_vary_headers, backup_csrf_token
 from phased.middleware import PhasedRenderMiddleware, PatchedVaryUpdateCacheMiddleware
 from phased import settings
+from phased import utils
+
+
+def set_fixed_pickle():
+    import pickle
+    utils.get_pickle = lambda: pickle
+
 
 class TwoPhaseTestCase(unittest.TestCase):
 
@@ -20,7 +30,9 @@ class TwoPhaseTestCase(unittest.TestCase):
         "{% endphased %}"
         "{{ test_var }}"
     )
+
     def setUp(self):
+        set_fixed_pickle()
         self.old_keep_context = settings.KEEP_CONTEXT
         settings.KEEP_CONTEXT = False
 
@@ -33,6 +45,7 @@ class TwoPhaseTestCase(unittest.TestCase):
         original_context = unpickle_context(first_render)
         self.assertNotEqual(flatten_context(context), original_context)
         pickled_context = '{# stashed context: "gAJ9cQFVCmNzcmZfdG9rZW5xAlULTk9UUFJPVklERURxA3Mu" #}'
+        pickled_context = pickle_context(Context({'csrf_token': 'NOTPROVIDED'}))
         self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
 
     def test_second_pass(self):
@@ -42,6 +55,7 @@ class TwoPhaseTestCase(unittest.TestCase):
         first_render = compile_string(self.test_template, None).render(Context({'test_var': 'TEST'}))
         second_render = second_pass_render(request, first_render)
         self.assertEqual(second_render, 'testTEST')
+
 
 class FancyTwoPhaseTestCase(TwoPhaseTestCase):
     def setUp(self):
@@ -111,13 +125,15 @@ class StashedTestCase(TwoPhaseTestCase):
         "{% endif %}"
         "{% endphased %}"
     )
+
     def setUp(self):
         super(StashedTestCase, self).setUp()
         settings.KEEP_CONTEXT = True
 
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
-        pickled_context = '{# stashed context: "gAJ9cQEoVQpjc3JmX3Rva2VucQJVC05PVFBST1ZJREVEcQNVCHRlc3RfdmFycQRVBFRFU1RxBXUu" #}'
+        # pickled_context = '{# stashed context: "gAJ9cQEoVQpjc3JmX3Rva2VucQJVC05PVFBST1ZJREVEcQNVCHRlc3RfdmFycQRVBFRFU1RxBXUu" #}'
+        pickled_context = '{# stashed context: "gAJ9cQAoVQpjc3JmX3Rva2VucQFVC05PVFBST1ZJREVEcQJVCHRlc3RfdmFycQNVBFRFU1RxBHUu" #}'
         first_render = compile_string(self.test_template, None).render(context)
         self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST%(delimiter)s{%% if 1 %%}test2{%% endif %%}{%% if test_condition2 %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)s' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
 
@@ -145,6 +161,7 @@ class PickyStashedTestCase(StashedTestCase):
         '{% endphased %}'
         '{{ test_var }}'
     )
+
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
         self.assertRaises(TemplateSyntaxError, compile_string(self.test_template, None).render, context)
@@ -153,7 +170,9 @@ class PickyStashedTestCase(StashedTestCase):
             'test_condition': True,
         })
         first_render = compile_string(self.test_template, None).render(context)
-        pickled_context = '{# stashed context: "gAJ9cQEoVQ50ZXN0X2NvbmRpdGlvbnECiFUKY3NyZl90b2tlbnEDVQtOT1RQUk9WSURFRHEEVQh0ZXN0X3ZhcnEFVQRURVNUcQZ1Lg==" #}'
+
+        # pickled_context = '{# stashed context: "gAJ9cQEoVQ50ZXN0X2NvbmRpdGlvbnECiFUKY3NyZl90b2tlbnEDVQtOT1RQUk9WSURFRHEEVQh0ZXN0X3ZhcnEFVQRURVNUcQZ1Lg==" #}'
+        pickled_context = '{# stashed context: "gAJ9cQAoVQ50ZXN0X2NvbmRpdGlvbnEBiFUKY3NyZl90b2tlbnECVQtOT1RQUk9WSURFRHEDVQh0ZXN0X3ZhcnEEVQRURVNUcQV1Lg==" #}'
         self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
 
     def test_second_pass(self):
@@ -172,6 +191,8 @@ class PickyStashedTestCase(StashedTestCase):
 
 
 class UtilsTestCase(unittest.TestCase):
+    def setUp(self):
+        set_fixed_pickle()
 
     def test_flatten(self):
         context = Context({'test_var': 'TEST'})
@@ -185,11 +206,12 @@ class UtilsTestCase(unittest.TestCase):
 
     def test_pickling(self):
         self.assertRaises(TemplateSyntaxError, pickle_context, {})
-        self.assertEqual(pickle_context(Context()), '{# stashed context: "gAJ9Lg==" #}')
+        # self.assertEqual(pickle_context(Context()), '{# stashed context: "gAJ9Lg==" #}')
+        self.assertEqual(pickle_context(Context()), '{# stashed context: "gAJ9cQAu" #}')
         context = Context({'test_var': 'TEST'})
         template = '<!-- better be careful %s yikes -->'
-        self.assertEqual(pickle_context(context), '{# stashed context: "gAJ9cQFVCHRlc3RfdmFycQJVBFRFU1RxA3Mu" #}')
-        self.assertEqual(pickle_context(context, template), '<!-- better be careful gAJ9cQFVCHRlc3RfdmFycQJVBFRFU1RxA3Mu yikes -->')
+        self.assertEqual(pickle_context(context), '{# stashed context: "gAJ9cQBVCHRlc3RfdmFycQFVBFRFU1RxAnMu" #}')
+        self.assertEqual(pickle_context(context, template), '<!-- better be careful gAJ9cQBVCHRlc3RfdmFycQFVBFRFU1RxAnMu yikes -->')
 
     def test_unpickling(self):
         self.assertEqual(unpickle_context(pickle_context(Context())), flatten_context(Context()))
@@ -221,9 +243,11 @@ class PhasedRenderMiddlewareTestCase(unittest.TestCase):
 
         self.assertEqual(response.content, 'before  inside  after')
 
+
 class PatchedVaryUpdateCacheMiddlewareTestCase(unittest.TestCase):
 
     def setUp(self):
+        self.factory = RequestFactory()
         # clear cache
         for key in cache._cache.keys():
             cache.delete(key)
@@ -232,8 +256,7 @@ class PatchedVaryUpdateCacheMiddlewareTestCase(unittest.TestCase):
         """
         Ensure basic caching works.
         """
-        request = HttpRequest()
-        request.method = 'GET'
+        request = self.factory.get('/test/no-vary')
         response = HttpResponse()
 
         SessionMiddleware().process_request(request)
@@ -251,8 +274,7 @@ class PatchedVaryUpdateCacheMiddlewareTestCase(unittest.TestCase):
         """
         Ensure caching works even when cookies are present and `Vary: Cookie` is on.
         """
-        request = HttpRequest()
-        request.method = 'GET'
+        request = self.factory.get('/test/vary')
         request.COOKIES = {'test': 'foo'}
         request.META['HTTP_COOKIE'] = 'test=foo'
 
@@ -264,15 +286,14 @@ class PatchedVaryUpdateCacheMiddlewareTestCase(unittest.TestCase):
         AuthenticationMiddleware().process_request(request)
 
         cache_hit = FetchFromCacheMiddleware().process_request(request)
-        self.assertEqual(cache_hit, None)
+        self.assertTrue(cache_hit is None)
 
         response = PatchedVaryUpdateCacheMiddleware().process_response(request, response)
         cache_hit = FetchFromCacheMiddleware().process_request(request)
 
         self.assertTrue(isinstance(cache_hit, HttpResponse))
 
-        new_request = HttpRequest()
-        new_request.method = 'GET'
+        new_request = self.factory.get('/test/vary')
         # note: not using cookies here. this demonstrates that cookies don't
         # affect the cache key
         cache_hit = FetchFromCacheMiddleware().process_request(new_request)
