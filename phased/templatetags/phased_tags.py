@@ -71,7 +71,8 @@ class PhasedNode(Node):
         }
 
 
-def do_phased(parser, token):
+@register.tag
+def phased(parser, token):
     """
     Template tag to denote a template section to render a second time via
     a middleware.
@@ -110,5 +111,3 @@ def do_phased(parser, token):
         if len(tokens) == 2:
             raise TemplateSyntaxError(u"'%r' tag requires at least one context variable name." % tokens[0])
     return PhasedNode(literal, tokens[2:])
-
-register.tag('phased', do_phased)
