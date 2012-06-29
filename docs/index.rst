@@ -1,12 +1,18 @@
-django-phased documentation
-===========================
-
-Contents:
+django-phased
+=============
 
 .. toctree::
    :maxdepth: 2
 
-   toc
+   tutorial
+   middleware
+   settings
+   utils
+   templatetag
+
+
+Indices and tables
+==================
 
 * :ref:`genindex`
 * :ref:`search`

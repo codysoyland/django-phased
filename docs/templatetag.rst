@@ -4,5 +4,7 @@
 Template tag
 ============
 
-.. autofunction:: phased.templatetags.phased_tags.do_phased
+.. highlight:: django
+
+.. autofunction:: phased.templatetags.phased_tags.phased
 .. autofunction:: phased.templatetags.phased_tags.parse

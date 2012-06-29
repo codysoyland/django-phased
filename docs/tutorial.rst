@@ -39,7 +39,9 @@ If using Django's caching middleware, use
 :class:`phased.middleware.PatchedVaryUpdateCacheMiddleware` to bypass the
 Vary: Cookie behavior of that middleware.
 
-A common setup for middleware classes would be this::
+A common setup for middleware classes would be this:
+
+.. code-block:: python
 
     MIDDLEWARE_CLASSES = (
         'phased.middleware.PhasedRenderMiddleware',
