@@ -11,8 +11,6 @@ before_install:
 install:
   - pip install -e .
   - pip install -r requirements/tests.txt Django==$DJANGO_VERSION
-before_script:
-  - flake8 phased --ignore=E501
 script:
   - make test
 branches:
