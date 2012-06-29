@@ -1,4 +1,4 @@
-{% load i18n %}<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
    "http://www.w3.org/TR/html4/strict.dtd">
 
 <html lang="en">
@@ -10,9 +10,7 @@
   <div id="body">
     {% load phased_tags %}
     {% phased %}
-        {% blocktrans with user.username as username %}
-            Hi, {{ username }}
-        {% endblocktrans %}
+        Hi, {{ user.username }}
     {% endphased %}
     {% block body %}
       <div class="content_title">
