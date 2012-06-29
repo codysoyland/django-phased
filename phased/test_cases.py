@@ -10,8 +10,12 @@ from django.middleware.cache import FetchFromCacheMiddleware, UpdateCacheMiddlew
 from django.utils.cache import patch_vary_headers
 from django.template import compile_string, Context, TemplateSyntaxError
 from django.test.client import RequestFactory
-from django.test.utils import override_settings
 from django.test import TestCase
+
+try:
+    from override_settings import override_settings
+except ImportError:
+    from django.test.utils import override_settings
 
 from phased.utils import (second_pass_render, pickle_context,
     unpickle_context, flatten_context, drop_vary_headers, backup_csrf_token)
