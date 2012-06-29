@@ -12,4 +12,4 @@ Changelog
 
 - Started to use Travis CI for testing:
 
-  https://travis-ci.org/codysoyland/django-phased
+  http://travis-ci.org/codysoyland/django-phased
