@@ -9,7 +9,7 @@ django-phased
    settings
    utils
    templatetag
-
+   changelog
 
 Indices and tables
 ==================
