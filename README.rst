@@ -6,8 +6,7 @@ A simple two-phase template rendering application useful for caching of authenti
 How it works
 ------------
 
-This technique has been desribed by Adrian Holovaty
-[in this blog post](http://www.holovaty.com/writing/django-two-phased-rendering/)
+This technique has been desribed by Adrian Holovaty `in this blog post`_
 and previously by Honza Kral. The idea is to first render the template with
 certain blocks denoted as "phased," such that they will not be rendered, and
 will remain valid template code that can be rendered with a second pass.
@@ -22,6 +21,8 @@ This implementation uses a secret delimiter that makes it safe against the
 possibility of template code injection vulnerabilities, as it only passes any
 given text through the template parser once. The phased blocks can also contain
 cached context.
+
+.. _`in this blog post`: http://www.holovaty.com/writing/django-two-phased-rendering/
 
 Basic Implementation
 --------------------
@@ -38,4 +39,6 @@ middleware from varying the cache key based on cookies, thus enabling caching
 of pages in authenticated sessions.
 
 Documentation lives in the ``docs`` directory as Sphinx documentation or
-[in HTML rendered form here](http://codysoyland.com/projects/django-phased/documentation/).
+`in HTML rendered form here`_.
+
+.. _`in HTML rendered form here`: http://codysoyland.com/projects/django-phased/documentation/
