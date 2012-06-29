@@ -15,7 +15,7 @@ from django.test import TestCase
 try:
     from override_settings import override_settings
 except ImportError:
-    from django.test.utils import override_settings
+    from django.test.utils import override_settings  # noqa
 
 from phased.utils import (second_pass_render, pickle_context,
     unpickle_context, flatten_context, drop_vary_headers, backup_csrf_token)
