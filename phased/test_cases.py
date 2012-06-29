@@ -1,28 +1,34 @@
+import pickle
 import re
-import unittest
 
-from django.template import compile_string, Context, TemplateSyntaxError
-from django.http import HttpRequest, HttpResponse
-from django.middleware.cache import FetchFromCacheMiddleware, UpdateCacheMiddleware
 from django.contrib.auth.middleware import AuthenticationMiddleware
 from django.contrib.sessions.middleware import SessionMiddleware
+from django.conf import settings
 from django.core.cache import cache
+from django.http import HttpResponse
+from django.middleware.cache import FetchFromCacheMiddleware, UpdateCacheMiddleware
 from django.utils.cache import patch_vary_headers
+from django.template import compile_string, Context, TemplateSyntaxError
 from django.test.client import RequestFactory
+from django.test.utils import override_settings
+from django.test import TestCase
 
-from phased.utils import second_pass_render, pickle_context, unpickle_context, flatten_context, drop_vary_headers, backup_csrf_token
-from phased.middleware import PhasedRenderMiddleware, PatchedVaryUpdateCacheMiddleware
-from phased import settings
+from phased.utils import (second_pass_render, pickle_context,
+    unpickle_context, flatten_context, drop_vary_headers, backup_csrf_token)
+from phased.middleware import (PhasedRenderMiddleware,
+    PatchedVaryUpdateCacheMiddleware)
 from phased import utils
 
 
-def set_fixed_pickle():
-    import pickle
-    utils.get_pickle = lambda: pickle
+class PhasedTestCase(TestCase):
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        utils.get_pickle = lambda: pickle
+        super(PhasedTestCase, self).setUp()
 
 
-class TwoPhaseTestCase(unittest.TestCase):
-
+class TwoPhaseTestCase(PhasedTestCase):
     test_template = (
         "{% load phased_tags %}"
         "{% phased %}"
@@ -31,54 +37,37 @@ class TwoPhaseTestCase(unittest.TestCase):
         "{{ test_var }}"
     )
 
-    def setUp(self):
-        set_fixed_pickle()
-        self.old_keep_context = settings.KEEP_CONTEXT
-        settings.KEEP_CONTEXT = False
-
-    def tearDown(self):
-        settings.KEEP_CONTEXT = self.old_keep_context
-
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
         first_render = compile_string(self.test_template, None).render(context)
         original_context = unpickle_context(first_render)
         self.assertNotEqual(flatten_context(context), original_context)
-        pickled_context = '{# stashed context: "gAJ9cQFVCmNzcmZfdG9rZW5xAlULTk9UUFJPVklERURxA3Mu" #}'
         pickled_context = pickle_context(Context({'csrf_token': 'NOTPROVIDED'}))
-        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
+        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}%(pickled_context)s%(delimiter)sTEST' %
+            dict(delimiter=settings.PHASED_SECRET_DELIMITER, pickled_context=pickled_context))
 
     def test_second_pass(self):
-        request = HttpRequest()
-        request.method = 'GET'
-
+        request = self.factory.get('/')
         first_render = compile_string(self.test_template, None).render(Context({'test_var': 'TEST'}))
         second_render = second_pass_render(request, first_render)
         self.assertEqual(second_render, 'testTEST')
 
+TwoPhaseTestCase = override_settings(PHASED_KEEP_CONTEXT=False)(TwoPhaseTestCase)
+
 
 class FancyTwoPhaseTestCase(TwoPhaseTestCase):
-    def setUp(self):
-        self.old_secret_delimiter = settings.SECRET_DELIMITER
-        settings.SECRET_DELIMITER = "fancydelimiter"
-        super(FancyTwoPhaseTestCase, self).setUp()
-
-    def tearDown(self):
-        settings.SECRET_DELIMITER = self.old_secret_delimiter
-        super(FancyTwoPhaseTestCase, self).tearDown()
-
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
         first_render = compile_string(self.test_template, None).render(context)
         self.assertEqual(first_render, 'fancydelimiter{%% if 1 %%}test{%% endif %%}%sfancydelimiterTEST' % pickle_context(backup_csrf_token(context)))
 
     def test_second_pass(self):
-        request = HttpRequest()
-        request.method = 'GET'
-
+        request = self.factory.get('/')
         first_render = compile_string(self.test_template, None).render(Context({'test_var': 'TEST'}))
         second_render = second_pass_render(request, first_render)
         self.assertEqual(second_render, 'testTEST')
+
+FancyTwoPhaseTestCase = override_settings(PHASED_SECRET_DELIMITER="fancydelimiter")(FancyTwoPhaseTestCase)
 
 
 class NestedTwoPhaseTestCase(TwoPhaseTestCase):
@@ -97,12 +86,11 @@ class NestedTwoPhaseTestCase(TwoPhaseTestCase):
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
         first_render = compile_string(self.test_template, None).render(context)
-        self.assertEqual(first_render, '%(delimiter)s{%% load phased_tags %%}{%% phased %%}{%% if 1 %%}first{%% endif %%}{%% endphased %%}{%% if 1 %%}second{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickle_context(backup_csrf_token(context))))
+        self.assertEqual(first_render, '%(delimiter)s{%% load phased_tags %%}{%% phased %%}{%% if 1 %%}first{%% endif %%}{%% endphased %%}{%% if 1 %%}second{%% endif %%}%(pickled_context)s%(delimiter)sTEST' %
+            dict(delimiter=settings.PHASED_SECRET_DELIMITER, pickled_context=pickle_context(backup_csrf_token(context))))
 
     def test_second_pass(self):
-        request = HttpRequest()
-        request.method = 'GET'
-
+        request = self.factory.get('/')
         first_render = compile_string(self.test_template, None).render(Context({'test_var': 'TEST'}))
         second_render = second_pass_render(request, first_render)
         self.assertEqual(second_render, 'firstsecondTEST')
@@ -126,19 +114,17 @@ class StashedTestCase(TwoPhaseTestCase):
         "{% endphased %}"
     )
 
-    def setUp(self):
-        super(StashedTestCase, self).setUp()
-        settings.KEEP_CONTEXT = True
-
+    @override_settings(PHASED_KEEP_CONTEXT=True)
     def test_phased(self):
         context = Context({'test_var': 'TEST'})
         pickled_context = '{# stashed context: "gAJ9cQAoVQpjc3JmX3Rva2VucQFVC05PVFBST1ZJREVEcQJVCHRlc3RfdmFycQNVBFRFU1RxBHUu" #}'
         first_render = compile_string(self.test_template, None).render(context)
-        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST%(delimiter)s{%% if 1 %%}test2{%% endif %%}{%% if test_condition2 %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)s' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
+        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST%(delimiter)s{%% if 1 %%}test2{%% endif %%}{%% if test_condition2 %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)s' %
+            dict(delimiter=settings.PHASED_SECRET_DELIMITER, pickled_context=pickled_context))
 
+    @override_settings(PHASED_KEEP_CONTEXT=True)
     def test_second_pass(self):
-        request = HttpRequest()
-        request.method = 'GET'
+        request = self.factory.get('/')
         context = Context({
             'test_var': 'TEST',
             'test_condition': True,
@@ -170,11 +156,11 @@ class PickyStashedTestCase(StashedTestCase):
         })
         first_render = compile_string(self.test_template, None).render(context)
         pickled_context = '{# stashed context: "gAJ9cQAoVQ50ZXN0X2NvbmRpdGlvbnEBiFUKY3NyZl90b2tlbnECVQtOT1RQUk9WSURFRHEDVQh0ZXN0X3ZhcnEEVQRURVNUcQV1Lg==" #}'
-        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST' % dict(delimiter=settings.SECRET_DELIMITER, pickled_context=pickled_context))
+        self.assertEqual(first_render, '%(delimiter)s{%% if 1 %%}test{%% endif %%}{%% if test_condition %%}stashed{%% endif %%}%(pickled_context)s%(delimiter)sTEST' %
+            dict(delimiter=settings.PHASED_SECRET_DELIMITER, pickled_context=pickled_context))
 
     def test_second_pass(self):
-        request = HttpRequest()
-        request.method = 'GET'
+        request = self.factory.get('/')
         context = Context({
             'test_var': 'TEST',
             'test_var2': 'TEST2',
@@ -187,10 +173,7 @@ class PickyStashedTestCase(StashedTestCase):
         self.assertEqual(second_render, 'teststashedTEST')
 
 
-class UtilsTestCase(unittest.TestCase):
-    def setUp(self):
-        set_fixed_pickle()
-
+class UtilsTestCase(PhasedTestCase):
     def test_flatten(self):
         context = Context({'test_var': 'TEST'})
         context.update({'test_var': 'TEST2', 'abc': 'def'})
@@ -225,25 +208,25 @@ class UtilsTestCase(unittest.TestCase):
         self.assertEqual(flatten_context(context), unpickled_context)
 
 
-class PhasedRenderMiddlewareTestCase(unittest.TestCase):
+class PhasedRenderMiddlewareTestCase(PhasedTestCase):
     def test_basic(self):
-        request = HttpRequest()
+        request = self.factory.get('/')
         response = HttpResponse(
             'before '
             '%(delimiter)s '
             'inside{# a comment #} '
             '%(delimiter)s '
-            'after' % dict(delimiter=settings.SECRET_DELIMITER))
+            'after' % dict(delimiter=settings.PHASED_SECRET_DELIMITER))
 
         response = PhasedRenderMiddleware().process_response(request, response)
 
         self.assertEqual(response.content, 'before  inside  after')
 
 
-class PatchedVaryUpdateCacheMiddlewareTestCase(unittest.TestCase):
+class PatchedVaryUpdateCacheMiddlewareTestCase(PhasedTestCase):
 
     def setUp(self):
-        self.factory = RequestFactory()
+        super(PatchedVaryUpdateCacheMiddlewareTestCase, self).setUp()
         # clear cache
         for key in cache._cache.keys():
             cache.delete(key)
@@ -302,7 +285,7 @@ class PatchedVaryUpdateCacheMiddlewareTestCase(unittest.TestCase):
         UpdateCacheMiddleware instead of PatchedVaryUpdateCacheMiddleware.
         This does not get a cache hit if the cookies are not the same.
         """
-        request = HttpRequest()
+        request = self.factory.get('/')
         request.method = 'GET'
         request.COOKIES = {'test': 'foo'}
         request.META['HTTP_COOKIE'] = 'test=foo'
@@ -322,7 +305,7 @@ class PatchedVaryUpdateCacheMiddlewareTestCase(unittest.TestCase):
 
         self.assertTrue(isinstance(cache_hit, HttpResponse))
 
-        new_request = HttpRequest()
+        new_request = self.factory.get('/')
         new_request.method = 'GET'
         # note: not using cookies here. this demonstrates that cookies don't
         # affect the cache key

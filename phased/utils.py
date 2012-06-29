@@ -1,6 +1,6 @@
 import re
 import base64
-from django.conf import settings as django_settings
+from django.conf import settings
 from django.http import HttpRequest
 from django.template import (Parser, Lexer, Token, TOKEN_TEXT,
     COMMENT_TAG_START, COMMENT_TAG_END, TemplateSyntaxError)
@@ -18,8 +18,6 @@ def get_pickle():
         import pickle  # noqa
     return pickle
 
-from phased import settings
-
 pickled_context_re = re.compile(r'.*%s stashed context: "(.*)" %s.*' % (COMMENT_TAG_START, COMMENT_TAG_END))
 forbidden_classes = (Promise, LazyObject, HttpRequest, BaseStorage)
 
@@ -33,7 +31,7 @@ def second_pass_render(request, content):
     code injection vulnerability.
     """
     result = tokens = []
-    for index, bit in enumerate(content.split(settings.SECRET_DELIMITER)):
+    for index, bit in enumerate(content.split(settings.PHASED_SECRET_DELIMITER)):
         if index % 2:
             tokens = Lexer(bit, None).tokenize()
         else:
@@ -43,7 +41,7 @@ def second_pass_render(request, content):
             restore_csrf_token(request, unpickle_context(bit)))
         rendered = Parser(tokens).parse().render(context)
 
-        if settings.SECRET_DELIMITER in rendered:
+        if settings.PHASED_SECRET_DELIMITER in rendered:
             rendered = second_pass_render(request, rendered)
         result.append(rendered)
 
@@ -60,7 +58,7 @@ def restore_csrf_token(request, storage=None):
     if storage is None:
         storage = {}
     try:
-        request.META["CSRF_COOKIE"] = request.COOKIES[django_settings.CSRF_COOKIE_NAME]
+        request.META["CSRF_COOKIE"] = request.COOKIES[settings.CSRF_COOKIE_NAME]
     except KeyError:
         csrf_token = storage.get('csrf_token', None)
         if csrf_token:

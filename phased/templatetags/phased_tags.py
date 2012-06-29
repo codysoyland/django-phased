@@ -1,12 +1,13 @@
+from django.conf import settings
 from django.template import (Library, Node, Variable,
     TOKEN_BLOCK, TOKEN_COMMENT, TOKEN_TEXT, TOKEN_VAR,
     TemplateSyntaxError, VariableDoesNotExist, Context)
 from django.utils.encoding import smart_str
 
-from phased import settings
 from phased.utils import pickle_context, flatten_context, backup_csrf_token
 
 register = Library()
+
 
 def parse(parser):
     """
@@ -47,7 +48,7 @@ class PhasedNode(Node):
         storage = Context()
 
         # stash the whole context if needed
-        if settings.KEEP_CONTEXT:
+        if getattr(settings, 'PHASED_KEEP_CONTEXT', False):
             storage.update(flatten_context(context))
 
         # but check if there are variables specifically wanted
@@ -65,7 +66,7 @@ class PhasedNode(Node):
         # lastly return the pre phased template part
         return u'%(delimiter)s%(content)s%(pickled)s%(delimiter)s' % {
             'content': self.content,
-            'delimiter': settings.SECRET_DELIMITER,
+            'delimiter': settings.PHASED_SECRET_DELIMITER,
             'pickled': pickle_context(storage),
         }
 
