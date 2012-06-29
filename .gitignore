@@ -5,3 +5,4 @@ MANIFEST
 *.egg-info
 example/db.sqlite
 .coverage
+docs/_build/
