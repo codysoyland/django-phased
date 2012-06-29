@@ -38,7 +38,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'django-phased'
-copyright = u'2010, Cody Soyland'
+copyright = u'2010 - 2012, Cody Soyland and individual authors'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
