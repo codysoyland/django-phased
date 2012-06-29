@@ -1,6 +1,10 @@
 django-phased
 =============
 
+.. image:: https://secure.travis-ci.org/codysoyland/django-phased.png
+   :alt: Build Status
+   :target: https://secure.travis-ci.org/codysoyland/django-phased
+
 A simple two-phase template rendering application useful for caching of authenticated requests.
 
 How it works
@@ -41,4 +45,4 @@ of pages in authenticated sessions.
 Documentation lives in the ``docs`` directory as Sphinx documentation or
 `in HTML rendered form here`_.
 
-.. _`in HTML rendered form here`: http://codysoyland.com/projects/django-phased/documentation/
+.. _`in HTML rendered form here`: http://django-phased.readthedocs.org/en/latest/
