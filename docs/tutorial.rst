@@ -32,6 +32,11 @@ Configuration
 To make django-phased tags available to your templates, add ``'phased'`` to
 your ``INSTALLED_APPS``.
 
+You can either use ``phased`` via the ``PhasedRenderMiddleware`` middleware or via the ``phasedcache`` template tag.
+
+Middleware
+----------
+
 Install :class:`phased.middleware.PhasedRenderMiddleware` to enable
 second-phase rendering of templates.
 
@@ -51,3 +56,14 @@ A common setup for middleware classes would be this:
     )
 
 See :doc:`settings` for additional settings.
+
+
+Template Tag
+------------
+
+In order to use the ``phasedcache`` template tag you need to add ``'django.core.context_processors.request'`` to the ``TEMPLATE_CONTEXT_PROCESSORS`` settings variable and use ``RequestContext``
+when you render your templates.
+
+The ``phasedcache`` template tag works exactly like the Django's ``cache`` template tag except that it will do a second render pass.
+
+See :class:`phased.templatetags.phased_tags.phasedcache` for details.

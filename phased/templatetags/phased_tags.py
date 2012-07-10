@@ -129,18 +129,21 @@ class PhasedCacheNode(CacheNode):
 
 
 @register.tag('phasedcache')
-def do_cache(parser, token):
+def phasedcache(parser, token):
     """
-    Taken from django.templatetags.cache and changed ending tag.
+    Taken from ``django.templatetags.cache`` and changed ending tag.
 
     This will cache the contents of a template fragment for a given amount
-    of time and do a second pass render on the contents
+    of time and do a second pass render on the contents.
 
     Usage::
 
         {% load phased_tags %}
         {% phasedcache [expire_time] [fragment_name] %}
             .. some expensive processing ..
+            {% phased %}
+                .. some request specific stuff ..
+            {% endphased %}
         {% endphasedcache %}
 
     This tag also supports varying by a list of arguments::
@@ -148,9 +151,17 @@ def do_cache(parser, token):
         {% load phased_tags %}
         {% phasedcache [expire_time] [fragment_name] [var1] [var2] .. %}
             .. some expensive processing ..
+            {% phased %}
+                .. some request specific stuff ..
+            {% endphased %}
         {% endphasedcache %}
 
     Each unique set of arguments will result in a unique cache entry.
+    The tag will take care that the phased tags are properly rendered.
+
+    It requires usage of ``RequestContext`` and
+    ``django.core.context_processors.request`` to be in the
+    ``TEMPLATE_CONTEXT_PROCESSORS`` setting.
     """
     nodelist = parser.parse(('endphasedcache',))
     parser.delete_first_token()
