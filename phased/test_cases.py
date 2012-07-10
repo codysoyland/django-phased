@@ -231,9 +231,7 @@ class PatchedVaryUpdateCacheMiddlewareTestCase(PhasedTestCase):
 
     def setUp(self):
         super(PatchedVaryUpdateCacheMiddlewareTestCase, self).setUp()
-        # clear cache
-        for key in cache._cache.keys():
-            cache.delete(key)
+        cache.clear()
 
     def test_no_vary(self):
         """
