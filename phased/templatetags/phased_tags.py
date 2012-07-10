@@ -128,7 +128,7 @@ class PhasedCacheNode(CacheNode):
         return second_pass_render(context['request'], content)
 
 
-@register.tag('phasedcache')
+@register.tag
 def phasedcache(parser, token):
     """
     Taken from ``django.templatetags.cache`` and changed ending tag.
