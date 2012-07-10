@@ -8,8 +8,8 @@ from django.core.cache import cache
 from django.http import HttpResponse
 from django.middleware.cache import FetchFromCacheMiddleware, UpdateCacheMiddleware
 from django.utils.cache import patch_vary_headers
-from django.template import (compile_string, Context, TemplateSyntaxError,
-        RequestContext)
+from django.template import (compile_string, Context,
+    TemplateSyntaxError, RequestContext)
 from django.test.client import RequestFactory
 from django.test import TestCase
 
@@ -225,7 +225,7 @@ class PhasedRenderMiddlewareTestCase(PhasedTestCase):
     def test_basic(self):
         request = self.factory.get('/')
         response = HttpResponse(self.template %
-                dict(delimiter=settings.PHASED_SECRET_DELIMITER))
+            dict(delimiter=settings.PHASED_SECRET_DELIMITER))
 
         response = PhasedRenderMiddleware().process_response(request, response)
 
@@ -233,8 +233,7 @@ class PhasedRenderMiddlewareTestCase(PhasedTestCase):
 
     def test_not_html(self):
         request = self.factory.get('/')
-        applied_delimiter = self.template % dict(
-                delimiter=settings.PHASED_SECRET_DELIMITER)
+        applied_delimiter = self.template % dict(delimiter=settings.PHASED_SECRET_DELIMITER)
         response = HttpResponse(applied_delimiter, mimetype='application/json')
 
         response = PhasedRenderMiddleware().process_response(request, response)
