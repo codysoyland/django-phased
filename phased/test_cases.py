@@ -8,7 +8,8 @@ from django.core.cache import cache
 from django.http import HttpResponse
 from django.middleware.cache import FetchFromCacheMiddleware, UpdateCacheMiddleware
 from django.utils.cache import patch_vary_headers
-from django.template import compile_string, Context, TemplateSyntaxError
+from django.template import (compile_string, Context, TemplateSyntaxError,
+        RequestContext)
 from django.test.client import RequestFactory
 from django.test import TestCase
 
@@ -213,27 +214,38 @@ class UtilsTestCase(PhasedTestCase):
 
 
 class PhasedRenderMiddlewareTestCase(PhasedTestCase):
+    template = (
+        'before '
+        '%(delimiter)s '
+        'inside{# a comment #} '
+        '%(delimiter)s '
+        'after'
+    )
+
     def test_basic(self):
         request = self.factory.get('/')
-        response = HttpResponse(
-            'before '
-            '%(delimiter)s '
-            'inside{# a comment #} '
-            '%(delimiter)s '
-            'after' % dict(delimiter=settings.PHASED_SECRET_DELIMITER))
+        response = HttpResponse(self.template %
+                dict(delimiter=settings.PHASED_SECRET_DELIMITER))
 
         response = PhasedRenderMiddleware().process_response(request, response)
 
         self.assertEqual(response.content, 'before  inside  after')
+
+    def test_not_html(self):
+        request = self.factory.get('/')
+        applied_delimiter = self.template % dict(
+                delimiter=settings.PHASED_SECRET_DELIMITER)
+        response = HttpResponse(applied_delimiter, mimetype='application/json')
+
+        response = PhasedRenderMiddleware().process_response(request, response)
+        self.assertEqual(response.content, applied_delimiter)
 
 
 class PatchedVaryUpdateCacheMiddlewareTestCase(PhasedTestCase):
 
     def setUp(self):
         super(PatchedVaryUpdateCacheMiddlewareTestCase, self).setUp()
-        # clear cache
-        for key in cache._cache.keys():
-            cache.delete(key)
+        cache.clear()
 
     def test_no_vary(self):
         """
@@ -329,3 +341,37 @@ class PatchedVaryUpdateCacheMiddlewareTestCase(PhasedTestCase):
         self.assertEqual(response['Vary'], 'Nomnomnom')
         drop_vary_headers(response, ['Nomnomnom'])
         self.assertFalse(response.has_header('Vary'))
+
+
+class PhasedCacheTemplateTagTest(PhasedTestCase):
+    test_template = (
+        "{% load phased_tags %}"
+        "OtherPart"
+        "{% phasedcache 10000 phased_test %}"
+        "{{ test_var }}"
+        "{% phased %}"
+        "{{ request.path }}"
+        "{% endphased %}"
+        "{% endphasedcache %}"
+        "TEST"
+    )
+
+    def setUp(self):
+        super(PhasedCacheTemplateTagTest, self).setUp()
+        cache.clear()
+
+    def test_phasedcache(self):
+        self.assertEqual(len(cache._cache.keys()), 0)
+        request = self.factory.get('/')
+        context = RequestContext(request, {'test_var': 'Testing'})
+        rendering = compile_string(self.test_template, None).render(context)
+        self.assertEqual(rendering, 'OtherPartTesting/TEST')
+        self.assertEqual(len(cache._cache.keys()), 1)
+        cached_value = cache.get('template.cache.phased_test.d41d8cd98f00b204e9800998ecf8427e')
+        self.assertIsNotNone(cached_value)
+        self.assertTrue(cached_value.startswith('Testing'))
+        request = self.factory.get('/path/')
+        # Do not make test_var available, should be in cache
+        context = RequestContext(request)
+        rendering = compile_string(self.test_template, None).render(context)
+        self.assertEqual(rendering, 'OtherPartTesting/path/TEST')

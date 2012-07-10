@@ -3,8 +3,9 @@ from django.template import (Library, Node, Variable,
     TOKEN_BLOCK, TOKEN_COMMENT, TOKEN_TEXT, TOKEN_VAR,
     TemplateSyntaxError, VariableDoesNotExist, Context)
 from django.utils.encoding import smart_str
+from django.templatetags.cache import CacheNode
 
-from phased.utils import pickle_context, flatten_context, backup_csrf_token
+from phased.utils import pickle_context, flatten_context, backup_csrf_token, second_pass_render
 
 register = Library()
 
@@ -111,3 +112,60 @@ def phased(parser, token):
         if len(tokens) == 2:
             raise TemplateSyntaxError(u"'%r' tag requires at least one context variable name." % tokens[0])
     return PhasedNode(literal, tokens[2:])
+
+
+class PhasedCacheNode(CacheNode):
+    def render(self, context):
+        """
+        Template tag that acts like Django's cached tag
+        except that it does a second pass rendering.
+
+        Requires `RequestContext` and
+        `django.core.context_processors.request` to be in
+        TEMPLATE_CONTEXT_PROCESSORS
+        """
+        content = super(PhasedCacheNode, self).render(context)
+        return second_pass_render(context['request'], content)
+
+
+@register.tag
+def phasedcache(parser, token):
+    """
+    Taken from ``django.templatetags.cache`` and changed ending tag.
+
+    This will cache the contents of a template fragment for a given amount
+    of time and do a second pass render on the contents.
+
+    Usage::
+
+        {% load phased_tags %}
+        {% phasedcache [expire_time] [fragment_name] %}
+            .. some expensive processing ..
+            {% phased %}
+                .. some request specific stuff ..
+            {% endphased %}
+        {% endphasedcache %}
+
+    This tag also supports varying by a list of arguments::
+
+        {% load phased_tags %}
+        {% phasedcache [expire_time] [fragment_name] [var1] [var2] .. %}
+            .. some expensive processing ..
+            {% phased %}
+                .. some request specific stuff ..
+            {% endphased %}
+        {% endphasedcache %}
+
+    Each unique set of arguments will result in a unique cache entry.
+    The tag will take care that the phased tags are properly rendered.
+
+    It requires usage of ``RequestContext`` and
+    ``django.core.context_processors.request`` to be in the
+    ``TEMPLATE_CONTEXT_PROCESSORS`` setting.
+    """
+    nodelist = parser.parse(('endphasedcache',))
+    parser.delete_first_token()
+    tokens = token.contents.split()
+    if len(tokens) < 3:
+        raise TemplateSyntaxError(u"'%r' tag requires at least 2 arguments." % tokens[0])
+    return PhasedCacheNode(nodelist, tokens[1], tokens[2], tokens[3:])
