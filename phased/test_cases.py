@@ -213,18 +213,31 @@ class UtilsTestCase(PhasedTestCase):
 
 
 class PhasedRenderMiddlewareTestCase(PhasedTestCase):
+    template = (
+        'before '
+        '%(delimiter)s '
+        'inside{# a comment #} '
+        '%(delimiter)s '
+        'after'
+    )
+
     def test_basic(self):
         request = self.factory.get('/')
-        response = HttpResponse(
-            'before '
-            '%(delimiter)s '
-            'inside{# a comment #} '
-            '%(delimiter)s '
-            'after' % dict(delimiter=settings.PHASED_SECRET_DELIMITER))
+        response = HttpResponse(self.template %
+                dict(delimiter=settings.PHASED_SECRET_DELIMITER))
 
         response = PhasedRenderMiddleware().process_response(request, response)
 
         self.assertEqual(response.content, 'before  inside  after')
+
+    def test_not_html(self):
+        request = self.factory.get('/')
+        applied_delimiter = self.template % dict(
+                delimiter=settings.PHASED_SECRET_DELIMITER)
+        response = HttpResponse(applied_delimiter, mimetype='application/json')
+
+        response = PhasedRenderMiddleware().process_response(request, response)
+        self.assertEqual(response.content, applied_delimiter)
 
 
 class PatchedVaryUpdateCacheMiddlewareTestCase(PhasedTestCase):
