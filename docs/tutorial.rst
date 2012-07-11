@@ -1,8 +1,8 @@
 .. _ref-tutorial:
 
-==================================
-Getting Started with django-phased
-==================================
+==========
+Quickstart
+==========
 
 django-phased is an implementation of a two-phase template rendering system
 to allow caching of pages that otherwise would be uncachable due to
@@ -17,33 +17,39 @@ Installation
 To install django-phased, either check out the source from Github or install
 from PyPI_:
 
-  * Check out django-phased from GitHub_ and run `python setup.py install`
-    in the source checkout, or
+* Check out django-phased from GitHub_ and run ``python setup.py install``
+  in the source checkout
 
-  * Run ``pip install django-phased``.
+  or
+
+* Run ``pip install django-phased``.
 
 .. _GitHub: http://github.com/codysoyland/django-phased
 .. _PyPI: http://pypi.python.org/
 
 
-Configuration
-=============
+Setup
+=====
 
 To make django-phased tags available to your templates, add ``'phased'`` to
 your ``INSTALLED_APPS``.
 
-You can either use ``phased`` via the ``PhasedRenderMiddleware``
-middleware or via the ``phasedcache`` template tag.
+You can either use ``phased`` via the
+:ref:`PhasedRenderMiddleware <ref-middleware>` middleware or the
+:attr:`~phased.templatetags.phased_tags.phasedcache` template tag.
+
+Usage
+=====
 
 Middleware
 ----------
 
-Install :class:`phased.middleware.PhasedRenderMiddleware` to enable
+Install the :class:`~phased.middleware.PhasedRenderMiddleware` to enable
 second-phase rendering of templates.
 
 If using Django's caching middleware, use
-:class:`phased.middleware.PatchedVaryUpdateCacheMiddleware` to bypass the
-Vary: Cookie behavior of that middleware.
+:class:`~phased.middleware.PatchedVaryUpdateCacheMiddleware` to bypass the
+``Vary: Cookie`` behavior of that middleware.
 
 A common setup for middleware classes would be this:
 
@@ -58,15 +64,21 @@ A common setup for middleware classes would be this:
 
 See :doc:`settings` for additional settings.
 
-
 Template Tag
 ------------
 
 In order to use the ``phasedcache`` template tag you need to add
-``'django.core.context_processors.request'`` to the ``TEMPLATE_CONTEXT_PROCESSORS``
-settingsvariable and use ``RequestContext`` when you render your templates.
+``'django.core.context_processors.request'`` to the
+``TEMPLATE_CONTEXT_PROCESSORS`` settings variable and use ``RequestContext``
+when you render your templates. See the Django docs on
+`how to use RequestContext`_ in your views.
 
-The ``phasedcache`` template tag works exactly like the Django's ``cache`` template
-tag except that it will do a second render pass.
+The ``phasedcache`` template tag works exactly like Django's
+`cache template tag`_ except that it will run a second render pass using the
+:attr:`~phased.utils.second_pass_render` function with value returned
+from the cache.
 
-See :class:`phased.templatetags.phased_tags.phasedcache` for details.
+See :attr:`~phased.templatetags.phased_tags.phasedcache` for details.
+
+.. _`how to use RequestContext`: https://docs.djangoproject.com/en/dev/ref/templates/api/#django.template.RequestContext
+.. _`cache template tag`: https://docs.djangoproject.com/en/dev/topics/cache/#template-fragment-caching

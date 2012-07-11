@@ -1,14 +1,13 @@
-django-phased
-=============
+.. include:: ../README.rst
 
 .. toctree::
    :maxdepth: 2
 
    tutorial
-   middleware
    settings
-   utils
+   middleware
    templatetag
+   utils
    changelog
 
 Indices and tables

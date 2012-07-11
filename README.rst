@@ -41,8 +41,3 @@ header from response when it updates the cache is also included, which, if
 used in place of the standard UpdateCacheMiddleware will prevent the cache
 middleware from varying the cache key based on cookies, thus enabling caching
 of pages in authenticated sessions.
-
-Documentation lives in the ``docs`` directory as Sphinx documentation or
-`in HTML rendered form here`_.
-
-.. _`in HTML rendered form here`: http://django-phased.readthedocs.org/en/latest/
